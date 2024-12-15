@@ -12,25 +12,31 @@
           [y (dec x)]]
          (filterv #(= (inc v) (get-in grid %))))))
 
-(defn score-trailhead [start neighbors-fn]
-  (loop [i 0
-         locations #{start}]
-    (if (= i 9)
-      (count locations)
-      (recur (inc i) (->> locations
-                          (mapcat neighbors-fn)
-                          set)))))
+(defn score-trailhead [& {:keys [start neighbors-fn distinct?]}]
+  (let [dedup (if distinct? identity set)]
+    (loop [i 0
+           locations #{start}]
+      (if (= i 9)
+        (count locations)
+        (recur (inc i) (->> locations
+                            (mapcat neighbors-fn)
+                            dedup))))))
 
-(defn part1 [grid]
+(defn walk-trailheads [grid distinct?]
   (reduce + (for [y (range (count grid))
                   x (range (count (get grid 0)))]
               (if (= 0 (get-in grid [y x]))
-                (score-trailhead [y x] #(trail-neighbors % grid))
+                (score-trailhead :start [y x]
+                                 :neighbors-fn #(trail-neighbors % grid)
+                                 :distinct? distinct?)
                 0))))
+
+(defn part1 [grid]
+  (walk-trailheads grid false))
+
+(defn part2 [grid]
+  (walk-trailheads grid true))
 
 (comment
   (part1 (parse-input))
-  (trail-neighbors [1 0] (parse-input))
-  (score-trailhead [0 2] #(trail-neighbors % (parse-input)))
-  (def grid (parse-input))
-  (def locations #{[1 0]}))
+  (part2 (parse-input)))
