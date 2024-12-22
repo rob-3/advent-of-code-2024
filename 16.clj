@@ -22,6 +22,13 @@
 (defn find-end [grid]
   (find-char grid \E))
 
+(defn reconstruct-path [from finish work-queue]
+  (loop [from from
+         path (list finish)]
+     (if from
+       (recur (get-in work-queue [from :from]) (conj path from))
+       path)))
+
 (defn a*
   "An A* implementation
    neighbors-fn :: node -> {:node node :cost +int}[]
@@ -36,32 +43,34 @@
                                             start {:heuristic ##-Inf :cost 0})
              best-paths #{}
              best-cost ##Inf]
+        (pprint best-paths)
+        (pprint best-cost)
+        (pprint work-queue)
         (let [current-data (first work-queue)
               [node {:keys [cost from heuristic]}] current-data]
           (cond
             (> cost best-cost) {:cost best-cost
                                 :paths best-paths}
             (= node finish) (recur (update work-queue node assoc :heuristic ##Inf)
-                                   (conj best-paths
-                                         (loop [from from
-                                                path (list finish)]
-                                           (if from
-                                             (recur (get-in work-queue [from :from]) (conj path from))
-                                             path)))
+                                   (conj best-paths (reconstruct-path from finish work-queue))
                                    cost)
             (= ##Inf heuristic) :no-path
             :else (let [neighbors (neighbors-of node)
                         neighbors-data (for [{neighbor :node neighbor-cost :cost} neighbors
                                              :let [total-cost (+ cost neighbor-cost)
                                                    current-cost (get-in work-queue [neighbor :cost])]
-                                             :when (< total-cost (or current-cost ##Inf))]
+                                             :when (<= total-cost (or current-cost ##Inf))]
                                          [neighbor
                                           {:heuristic (+ total-cost (heuristic-fn finish neighbor))
                                            :cost total-cost
                                            :from node}])
-                        work-queue (-> work-queue
-                                       (into neighbors-data)
-                                       (update node assoc :heuristic ##Inf))]
+                        work-queue (as-> work-queue $
+                                       (reduce (fn [q [k v]] 
+                                                 (if (< (:cost v) (get-in q [k :cost] ##Inf))
+                                                   (assoc q k v)
+                                                   (update-in q [k :from] conj (:from v))))
+                                               $ neighbors-data)
+                                       (update $ node assoc :heuristic ##Inf))]
                     (recur work-queue best-paths best-cost)))))))
 
 (def turn-cost
@@ -90,8 +99,7 @@
     (-> (cond
           (zero? dy) dx
           (zero? dx) dy
-          :else (+ dy dx))
-        (+ (turn-cost [dir1 dir2])))))
+          :else (+ dy dx (turn-cost [dir1 dir2]))))))
 
 (def dir->vec
   {:north [-1 0]
